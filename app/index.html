@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A clear overview of current project health and priorities.">
+    <title>Project Pulse</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#projects">Skip to projects</a>
+    <main class="dashboard">
+      <header class="dashboard-header">
+        <div>
+          <p class="eyebrow">Team overview</p>
+          <h1>Project Pulse</h1>
+          <p class="subtitle">A focused view of project health, recent movement, and what needs attention next.</p>
+        </div>
+      </header>
+
+      <section aria-labelledby="summary-heading">
+        <h2 id="summary-heading" class="visually-hidden">Project summary</h2>
+        <div class="summary-grid" id="summary" aria-live="polite"></div>
+      </section>
+
+      <section id="projects" aria-labelledby="projects-heading">
+        <div class="projects-header">
+          <h2 id="projects-heading">All projects</h2>
+          <p class="muted" id="project-count" aria-live="polite">Loading projects...</p>
+        </div>
+
+        <div id="loading-state" class="loading-state" role="status">
+          <p>Loading project data...</p>
+        </div>
+        <div id="empty-state" class="empty-state" role="status" hidden>
+          <p>No projects are available yet.</p>
+        </div>
+        <div id="malformed-state" class="error-state" role="alert" hidden>
+          <p>Project data could not be displayed because it has an unexpected format.</p>
+        </div>
+        <div id="fetch-error-state" class="error-state" role="alert" hidden>
+          <p>Project data could not be loaded. Check the server and try again.</p>
+        </div>
+        <div id="project-grid" class="project-grid" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const elements = {
+          loading: document.querySelector("#loading-state"),
+          empty: document.querySelector("#empty-state"),
+          malformed: document.querySelector("#malformed-state"),
+          fetchError: document.querySelector("#fetch-error-state"),
+          grid: document.querySelector("#project-grid"),
+          summary: document.querySelector("#summary"),
+          count: document.querySelector("#project-count")
+        };
+
+        const requiredFields = ["name", "owner", "status", "recentActivity", "priority"];
+
+        function showState(state) {
+          elements.loading.hidden = state !== "loading";
+          elements.empty.hidden = state !== "empty";
+          elements.malformed.hidden = state !== "malformed";
+          elements.fetchError.hidden = state !== "fetch-error";
+          elements.grid.hidden = state !== "ready";
+        }
+
+        function text(value) {
+          return document.createTextNode(value);
+        }
+
+        function createLabelValue(label, value) {
+          const paragraph = document.createElement("p");
+          const strong = document.createElement("strong");
+          strong.append(text(`${label}: `));
+          paragraph.append(strong, text(value));
+          return paragraph;
+        }
+
+        function createProjectCard(project) {
+          const article = document.createElement("article");
+          article.className = "project-card";
+
+          const top = document.createElement("div");
+          top.className = "project-card__top";
+          const title = document.createElement("div");
+          title.className = "project-card__title";
+          const heading = document.createElement("h3");
+          heading.append(text(project.name));
+          title.append(heading);
+
+          const status = document.createElement("span");
+          status.className = "status";
+          status.dataset.status = project.status.toLowerCase();
+          status.append(text(project.status));
+          status.setAttribute("aria-label", `Status: ${project.status}`);
+          top.append(title, status);
+
+          const description = document.createElement("p");
+          description.className = "project-card__description";
+          description.append(text(project.recentActivity));
+
+          const meta = document.createElement("div");
+          meta.className = "project-card__meta";
+          meta.append(createLabelValue("Owner", project.owner));
+
+          const footer = document.createElement("div");
+          footer.className = "project-card__footer";
+          const priority = document.createElement("span");
+          priority.className = "priority";
+          priority.dataset.priority = project.priority.toLowerCase();
+          priority.append(text(`Priority: ${project.priority}`));
+          footer.append(priority);
+
+          article.append(top, description, meta, footer);
+          return article;
+        }
+
+        function render(projects) {
+          elements.grid.replaceChildren(...projects.map(createProjectCard));
+          elements.summary.replaceChildren();
+          const statuses = projects.reduce((counts, project) => {
+            const status = project.status.toLowerCase();
+            counts[status] = (counts[status] || 0) + 1;
+            return counts;
+          }, {});
+          [
+            ["Projects", projects.length],
+            ["On track", statuses["on track"] || 0],
+            ["In progress", statuses["in progress"] || 0],
+            ["At risk", statuses["at risk"] || 0]
+          ].forEach(([label, value]) => {
+            const card = document.createElement("div");
+            card.className = "summary-card";
+            const labelElement = document.createElement("span");
+            labelElement.className = "summary-card__label";
+            labelElement.append(text(label));
+            const valueElement = document.createElement("span");
+            valueElement.className = "summary-card__value";
+            valueElement.append(text(String(value)));
+            card.append(labelElement, valueElement);
+            elements.summary.append(card);
+          });
+          elements.count.textContent = `${projects.length} ${projects.length === 1 ? "project" : "projects"}`;
+          showState("ready");
+        }
+
+        function isValidData(data) {
+          return data && Array.isArray(data.projects) && data.projects.every((project) =>
+            project && requiredFields.every((field) =>
+              typeof project[field] === "string" && project[field].trim().length > 0
+            )
+          );
+        }
+
+        async function loadProjects() {
+          showState("loading");
+          try {
+            const response = await fetch("project-data.json", { cache: "no-store" });
+            if (!response.ok) {
+              throw new Error(`Request failed with status ${response.status}`);
+            }
+            const data = await response.json();
+            if (!isValidData(data)) {
+              elements.count.textContent = "Data format error";
+              showState("malformed");
+              return;
+            }
+            if (data.projects.length === 0) {
+              elements.summary.replaceChildren();
+              elements.grid.replaceChildren();
+              elements.count.textContent = "0 projects";
+              showState("empty");
+              return;
+            }
+            render(data.projects);
+          } catch (error) {
+            console.error("Unable to load project data:", error);
+            elements.count.textContent = "Unable to load projects";
+            showState("fetch-error");
+          }
+        }
+
+        loadProjects();
+      })();
+    </script>
+  </body>
+</html>

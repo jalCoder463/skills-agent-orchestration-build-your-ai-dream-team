@@ -1,0 +1,32 @@
+{
+  "projects": [
+    {
+      "name": "Customer portal refresh",
+      "owner": "Maya Chen",
+      "status": "On track",
+      "recentActivity": "Design review completed yesterday",
+      "priority": "High"
+    },
+    {
+      "name": "Analytics workspace",
+      "owner": "Jordan Lee",
+      "status": "In progress",
+      "recentActivity": "Data pipeline integration is underway",
+      "priority": "Medium"
+    },
+    {
+      "name": "Mobile onboarding",
+      "owner": "Avery Morgan",
+      "status": "At risk",
+      "recentActivity": "Waiting on accessibility audit feedback",
+      "priority": "High"
+    },
+    {
+      "name": "Billing automation",
+      "owner": "Riley Patel",
+      "status": "Complete",
+      "recentActivity": "Released to all customers this week",
+      "priority": "Low"
+    }
+  ]
+}
